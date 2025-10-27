@@ -172,6 +172,7 @@ This is an early-stage project. The codebase will evolve as features are added. 
 - Share knowledge about eSSL devices and attendance systems
 
 ### Resources
-- PyZk Documentation: [GitHub repository for PyZk]
-- eSSL Device Documentation: Refer to manufacturer specifications
-- Python Best Practices: PEP 8, PEP 257, and other relevant PEPs
+- PyZk Documentation: [fananimi/pyzk on GitHub](https://github.com/fananimi/pyzk) - Python library for ZKTeco attendance devices
+- eSSL Device Documentation: Contact eSSL manufacturer for device-specific API documentation and specifications, or refer to device manuals
+- Python Best Practices: [PEP 8](https://peps.python.org/pep-0008/), [PEP 257](https://peps.python.org/pep-0257/), and other relevant PEPs
+- Attendance Device Resources: Community forums and reverse-engineering documentation for attendance systems
