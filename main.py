@@ -1,0 +1,17 @@
+from fastapi import FastAPI
+from app.routers import attendance, users, actions, stats, push_api
+
+app = FastAPI(title="eSSL Attendance Logger", version="1.0.0")
+
+# Include routers
+app.include_router(push_api.router, prefix="", tags=["Push API"])
+app.include_router(attendance.router, prefix="/attendance", tags=["Attendance"])
+app.include_router(users.router, prefix="/users", tags=["Users"])
+app.include_router(actions.router, prefix="/actions", tags=["Actions"])
+app.include_router(stats.router, prefix="/stats", tags=["Stats"])
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy"}
