@@ -1,0 +1,31 @@
+[build]
+  # Use Python 3.11 for better compatibility
+  nixPackages = ["python311"]
+
+[build.env]
+  # Set Python path
+  PYTHONPATH = "."
+
+[start]
+  # Use FastAPI CLI to run the server (modern approach)
+  cmd = "fastapi run main.py --port $PORT"
+
+[variables]
+  # Default port if not provided by Coolify
+  PORT = "8000"
+
+[install]
+  # Install Python dependencies
+  cmds = ["pip install --upgrade pip", "pip install -r requirements.txt"]
+
+[setup]
+  # Ensure data directory exists and has proper permissions
+  cmds = [
+    "mkdir -p data",
+    "touch data/attendance.json data/users.json data/faces.json data/fingerprints.json data/operations.json",
+    "echo '[]' > data/attendance.json",
+    "echo '[]' > data/users.json", 
+    "echo '[]' > data/faces.json",
+    "echo '[]' > data/fingerprints.json",
+    "echo '[]' > data/operations.json"
+  ]

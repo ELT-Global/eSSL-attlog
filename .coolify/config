@@ -1,0 +1,14 @@
+# Coolify deployment configuration
+# This file helps Coolify understand how to deploy your application
+
+# Port configuration
+PORT=8000
+
+# Health check endpoint
+HEALTH_CHECK_PATH=/health
+
+# Build configuration
+BUILD_PACK=nixpacks
+
+# Volume mounts (for data persistence)
+# Add this in Coolify UI: /data -> /app/data

@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from app.routers import attendance, users, actions, stats, push_api, data
 
@@ -14,5 +15,10 @@ app.include_router(data.router, prefix="/data", tags=["Data"])
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy"}
+    """Health check endpoint for deployment monitoring"""
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "data_dir": os.path.exists("data"),
+        "port": os.getenv("PORT", "8000")
+    }
