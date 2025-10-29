@@ -4,6 +4,8 @@ import logging
 from app.utils.parsers import parse_attendance_line, parse_operation_line, parse_user_line, parse_face_line, parse_fingerprint_line
 from app.utils.command_manager import command_manager
 from app.utils.data_manager import data_manager
+from app.utils.device_manager import device_manager
+from app.utils.device import Device
 from datetime import datetime, timedelta
 import app.commands as COMMAND
 from urllib.parse import parse_qs
@@ -30,33 +32,66 @@ async def get_request(request: Request):
     """The device polls this endpoint for commands."""
     query_params = dict(request.query_params)
     SN = query_params.get("SN")
-    logger.info(f"[Heartbeat 💓] Machine ID: '{SN}' polled for commands.")
+    if not SN:
+        # We don't know if this will happen, but just in case.
+        # todo: We could try to find the device by other means, but for now just ACK
+        logger.warning("⚠️ getrequest.aspx called without SN parameter.")
+        return PlainTextResponse(COMMAND.ACK)
+    
+    existing_machine = device_manager.get_device(SN)
+    logger.info(f"[Heartbeat 💓] Machine ID: '{SN}' polled for commands. {'(unknown)' if existing_machine is None else ''}")
     
     # Log device info if provided
     INFO = query_params.get("INFO")
     if INFO is not None:
-        logger.info(f"\tℹ️ INFO parameter received: {INFO}")
         info_tokens = INFO.split(',')
         firmware_version = info_tokens[0] if len(info_tokens) > 0 else "Unknown"
         device_type = info_tokens[1] if len(info_tokens) > 1 else "Unknown"
         device_ip = info_tokens[4] if len(info_tokens) > 4 else "Unknown"
-        logger.info(f"\t\tDevice Info - Firmware: {firmware_version}, Type: {device_type}, IP: {device_ip}")
+        
+        if existing_machine is None:
+            if not request.client:
+                logger.error(f"❌ Cannot add new device SN: {SN} - request.client is None")
+                return PlainTextResponse(COMMAND.ACK)
+            print("Request host is", request.client.host)
+            print("Device IP is ", device_ip)
+            device_manager.add_device(
+                device=Device(
+                    sn=SN,
+                    firmware_version=firmware_version,
+                    device_type=device_type,
+                    device_ip=request.client.host,
+                )
+            )
+        else:
+            if existing_machine.firmware_version != firmware_version:
+                logger.info(f"\t🔄 Device firmware changed from {existing_machine.firmware_version} to {firmware_version}. Updating record.")
+                existing_machine.firmware_version = firmware_version
+            if existing_machine.device_type != device_type:
+                logger.info(f"\t🔄 Device type changed from {existing_machine.device_type} to {device_type}. Updating record.")
+                existing_machine.device_type = device_type
+            if existing_machine.device_ip != device_ip:
+                logger.info(f"\t🔄 Device IP changed from {existing_machine.device_ip} to {device_ip}. Attempting to reconnect.")
+                existing_machine.device_ip = device_ip
+                existing_machine.connect_device(force=True)
     
-    if datetime.now() - last_attlog > timedelta(minutes=ATTLOG_FREQUENCY_MINUTES) and SN is not None:
-        logger.info(f"\t⏰ It's time to send attendance logs (every {ATTLOG_FREQUENCY_MINUTES} minutes).")
-        last_attlog = datetime.now()
-        command_manager.queue_command(SN, COMMAND.QUERY_ATTLOG)
+    # if existing_machine is None and INFO is None:
+    #     command_manager.queue_command(SN, COMMAND.CHECK)
+        
+    # if datetime.now() - last_attlog > timedelta(minutes=ATTLOG_FREQUENCY_MINUTES) and SN is not None:
+    #     logger.info(f"\t⏰ It's time to send attendance logs (every {ATTLOG_FREQUENCY_MINUTES} minutes).")
+    #     last_attlog = datetime.now()
+    #     command_manager.queue_command(SN, COMMAND.QUERY_ATTLOG)
     
     # Check if there are any pending commands for this device
-    if SN:
-        pending_commands = command_manager.get_pending_commands(SN)
-        if pending_commands:
-            # Build response: one command per line as "C:<id>:<command>"
-            lines = [f"C:{cmd['id']}:{cmd['command']}" for cmd in pending_commands]
-            response_text = '\n'.join(lines) + '\n'  # trailing newline is important
-            
-            logger.info(f"📤 Delivering {len(pending_commands)} commands to device {SN}")
-            return PlainTextResponse(response_text)
+    pending_commands = command_manager.get_pending_commands(SN)
+    if pending_commands:
+        # Build response: one command per line as "C:<id>:<command>"
+        lines = [f"C:{cmd['id']}:{cmd['command']}" for cmd in pending_commands]
+        response_text = '\n'.join(lines) + '\n'  # trailing newline is important
+        
+        logger.info(f"📤 Delivering {len(pending_commands)} commands to device {SN}")
+        return PlainTextResponse(response_text)
     
     # No commands or no device SN - return OK
     return PlainTextResponse(COMMAND.ACK)
