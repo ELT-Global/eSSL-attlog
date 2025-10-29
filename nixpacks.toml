@@ -8,7 +8,7 @@
 
 [start]
   # Use FastAPI CLI to run the server (modern approach)
-  cmd = "fastapi run main.py --port $PORT"
+  cmd = "fastapi run main.py"
 
 [variables]
   # Default port if not provided by Coolify

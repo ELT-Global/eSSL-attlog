@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Optional
 from zk import ZK, const 
 import logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class Device:
