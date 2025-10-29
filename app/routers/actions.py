@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.utils.command_manager import command_manager
 import logging
+from app.utils.device_manager import device_manager
+
 
 logger = logging.getLogger(__name__)
 
@@ -12,41 +14,52 @@ class QueueCommandRequest(BaseModel):
     SN: str
     command: str
 
+class PlayVoiceRequest(BaseModel):
+    SN: str
+    voice_id: int
 
-@router.get("/")
-async def get_actions():
-    """Get all actions"""
-    return {
-        "message": "Get all actions",
-        "data": [
-            {
-                "id": 1,
-                "action_type": "sync",
-                "timestamp": "2025-10-27T09:00:00",
-                "status": "completed"
-            },
-            {
-                "id": 2,
-                "action_type": "backup",
-                "timestamp": "2025-10-27T09:30:00",
-                "status": "in_progress"
+@router.post("/play-voice")
+async def play_voice(request: PlayVoiceRequest):
+    """
+    Play a voice prompt on the device
+    
+    Args:
+        request: PlayVoiceRequest containing SN (device serial number) and voice_id
+        
+    Returns:
+        dict: Response indicating success or failure
+    """
+    try:
+        # Validate input
+        if not request.SN or not request.SN.strip():
+            raise HTTPException(status_code=400, detail="SN (device serial number) is required")
+        
+        if request.voice_id < 1:
+            raise HTTPException(status_code=400, detail="voice_id must be a positive integer")
+        
+        # Retrieve the device
+        device = device_manager.get_device(request.SN.strip())
+        if device is None:
+            raise HTTPException(status_code=404, detail=f"Device with SN {request.SN} not found")
+        
+        # Play the voice prompt
+        device.play_voice(request.voice_id)
+        
+        logger.info(f"🔊 Voice ID {request.voice_id} played on device {request.SN}")
+        
+        return {
+            "message": "Voice played successfully",
+            "data": {
+                "device_sn": request.SN,
+                "voice_id": request.voice_id
             }
-        ]
-    }
-
-
-@router.post("/")
-async def create_action():
-    """Create a new action"""
-    return {
-        "message": "Action created successfully",
-        "data": {
-            "id": 3,
-            "action_type": "restore",
-            "timestamp": "2025-10-27T10:00:00",
-            "status": "pending"
         }
-    }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error playing voice on device {request.SN}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error while playing voice")
 
 
 @router.post("/queue-command")
