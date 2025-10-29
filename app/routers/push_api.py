@@ -52,36 +52,32 @@ async def get_request(request: Request):
             if not request.client:
                 logger.error(f"❌ Cannot add new device SN: {SN} - request.client is None")
                 return PlainTextResponse(COMMAND.ACK)
-            print("Request host is", request.client.host)
-            print("Device IP is ", device_ip)
+            logger.info(f"Device IP is {device_ip}")
             device_manager.add_device(
                 device=Device(
                     sn=SN,
                     firmware_version=firmware_version,
                     device_type=device_type,
-                    device_ip=request.client.host,
-                    device_port=request.client.port
+                    device_ip=device_ip
                 )
             )
         else:
+            is_changed = False
             if existing_machine.firmware_version != firmware_version:
                 logger.info(f"\t🔄 Device firmware changed from {existing_machine.firmware_version} to {firmware_version}. Updating record.")
                 existing_machine.firmware_version = firmware_version
+                is_changed = True
             if existing_machine.device_type != device_type:
                 logger.info(f"\t🔄 Device type changed from {existing_machine.device_type} to {device_type}. Updating record.")
                 existing_machine.device_type = device_type
+                is_changed = True
             if existing_machine.device_ip != device_ip:
-                logger.info(f"\t🔄 Device IP changed from {existing_machine.device_ip} to {device_ip}. Attempting to reconnect.")
+                logger.info(f"\t🔄 Device IP changed from {existing_machine.device_ip} to {device_ip}. Updating record.")
                 existing_machine.device_ip = device_ip
-                existing_machine.connect_device(force=True)
-    
-    # if existing_machine is None and INFO is None:
-    #     command_manager.queue_command(SN, COMMAND.CHECK)
-        
-    # if datetime.now() - last_attlog > timedelta(minutes=ATTLOG_FREQUENCY_MINUTES) and SN is not None:
-    #     logger.info(f"\t⏰ It's time to send attendance logs (every {ATTLOG_FREQUENCY_MINUTES} minutes).")
-    #     last_attlog = datetime.now()
-    #     command_manager.queue_command(SN, COMMAND.QUERY_ATTLOG)
+                is_changed = True
+            if is_changed:
+                logger.info(f"\t✅ Updated device info for SN: {SN}. Attempting to re-establish connection.")
+                existing_machine.set_socket_mode(force=True)
     
     # Check if there are any pending commands for this device
     pending_commands = command_manager.get_pending_commands(SN)

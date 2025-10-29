@@ -1,56 +1,45 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 from app.utils.command_manager import command_manager
 import logging
+from datetime import datetime
 from app.utils.device_manager import device_manager
-
+from app.schemas.actions import (
+    PlayVoiceRequest, 
+    SetTimeRequest, 
+    SocketModeRequest
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-
-class QueueCommandRequest(BaseModel):
-    SN: str
-    command: str
-
-class PlayVoiceRequest(BaseModel):
-    SN: str
-    voice_id: int
-
-@router.post("/play-voice")
-async def play_voice(request: PlayVoiceRequest):
+@router.post("play-voice")
+async def play_voice(device_sn: str, request: PlayVoiceRequest):
     """
     Play a voice prompt on the device
     
     Args:
-        request: PlayVoiceRequest containing SN (device serial number) and voice_id
+        device_sn: Device serial number
+        request: PlayVoiceRequest containing voice_id
         
     Returns:
         dict: Response indicating success or failure
     """
     try:
-        # Validate input
-        if not request.SN or not request.SN.strip():
-            raise HTTPException(status_code=400, detail="SN (device serial number) is required")
-        
-        if request.voice_id < 1:
-            raise HTTPException(status_code=400, detail="voice_id must be a positive integer")
-        
-        # Retrieve the device
-        device = device_manager.get_device(request.SN.strip())
+        # Retrieve the device (Pydantic handles validation automatically)
+        device = device_manager.get_device(device_sn)
         if device is None:
-            raise HTTPException(status_code=404, detail=f"Device with SN {request.SN} not found")
+            raise HTTPException(status_code=404, detail=f"Device with SN {device_sn} not found")
         
         # Play the voice prompt
         device.play_voice(request.voice_id)
         
-        logger.info(f"🔊 Voice ID {request.voice_id} played on device {request.SN}")
+        logger.info(f"🔊 Voice ID {request.voice_id} played on device {device_sn}")
         
         return {
             "message": "Voice played successfully",
             "data": {
-                "device_sn": request.SN,
+                "device_sn": device_sn,
                 "voice_id": request.voice_id
             }
         }
@@ -58,153 +47,218 @@ async def play_voice(request: PlayVoiceRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error playing voice on device {request.SN}: {str(e)}")
+        logger.error(f"Error playing voice on device {device_sn}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error while playing voice")
 
-
-@router.post("/queue-command")
-async def queue_command(request: QueueCommandRequest):
+@router.post("restart")
+async def restart_device(device_sn: str):
     """
-    Queue a command for a device
-    
-    Args:
-        request: QueueCommandRequest containing SN (device serial number) and command
-        
-    Returns:
-        dict: Response containing the queued command details
-    """
-    try:
-        # Validate input
-        if not request.SN or not request.SN.strip():
-            raise HTTPException(status_code=400, detail="SN (device serial number) is required")
-        
-        if not request.command or not request.command.strip():
-            raise HTTPException(status_code=400, detail="command is required")
-        
-        # Queue the command
-        queued_command = command_manager.queue_command(request.SN.strip(), request.command.strip())
-        
-        logger.info(f"📋 Command queued successfully for device {request.SN}: {request.command}")
-        
-        return {
-            "message": "Command queued successfully",
-            "data": {
-                "device_sn": request.SN,
-                "command_id": queued_command['id'],
-                "command": queued_command['command'],
-                "status": queued_command['status'],
-                "queued_at": queued_command['queuedAt']
-            }
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error queuing command for device {request.SN}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error while queuing command")
-
-
-@router.get("/commands/{device_sn}")
-async def get_device_commands(device_sn: str):
-    """
-    Get all commands for a specific device
+    Restart a device remotely
     
     Args:
         device_sn: Device serial number
         
     Returns:
-        dict: Response containing all commands for the device
+        dict: Response indicating success or failure
     """
     try:
-        commands = command_manager.get_device_commands(device_sn)
+        device = device_manager.get_device(device_sn)
+        if device is None:
+            raise HTTPException(status_code=404, detail=f"Device with SN {device_sn} not found")
+        
+        device.restart()
+        
+        logger.info(f"🔄 Device {device_sn} restart initiated")
         
         return {
-            "message": f"Commands for device {device_sn}",
+            "message": "Device restart initiated",
             "data": {
                 "device_sn": device_sn,
-                "commands": commands,
-                "total_commands": len(commands),
-                "pending_commands": len([cmd for cmd in commands if cmd['status'] == 'pending']),
-                "sent_commands": len([cmd for cmd in commands if cmd['status'] == 'sent']),
-                "completed_commands": len([cmd for cmd in commands if cmd['status'] == 'done'])
-            }
-        }
-    
-    except Exception as e:
-        logger.error(f"Error getting commands for device {device_sn}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error while retrieving commands")
-
-
-@router.get("/commands")
-async def get_all_commands():
-    """
-    Get all commands for all devices
-    
-    Returns:
-        dict: Response containing all commands for all devices
-    """
-    try:
-        all_commands = command_manager.get_all_commands()
-        
-        # Calculate summary statistics
-        total_devices = len(all_commands)
-        total_commands = sum(len(commands) for commands in all_commands.values())
-        
-        device_summaries = {}
-        for sn, commands in all_commands.items():
-            device_summaries[sn] = {
-                "total": len(commands),
-                "pending": len([cmd for cmd in commands if cmd['status'] == 'pending']),
-                "sent": len([cmd for cmd in commands if cmd['status'] == 'sent']),
-                "completed": len([cmd for cmd in commands if cmd['status'] == 'done'])
-            }
-        
-        return {
-            "message": "All device commands",
-            "data": {
-                "commands": all_commands,
-                "summary": {
-                    "total_devices": total_devices,
-                    "total_commands": total_commands,
-                    "device_summaries": device_summaries
-                }
-            }
-        }
-    
-    except Exception as e:
-        logger.error(f"Error getting all commands: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error while retrieving commands")
-
-
-@router.post("/cleanup-commands")
-async def cleanup_commands(device_sn: str | None = None, keep_last_n: int = 100):
-    """
-    Clean up completed commands to prevent memory bloat
-    
-    Args:
-        device_sn: Optional device serial number (if not provided, cleanup all devices)
-        keep_last_n: Number of completed commands to keep per device (default: 100)
-        
-    Returns:
-        dict: Response containing cleanup results
-    """
-    try:
-        if keep_last_n < 1:
-            raise HTTPException(status_code=400, detail="keep_last_n must be at least 1")
-        
-        cleaned_count = command_manager.cleanup_completed_commands(device_sn, keep_last_n)
-        
-        return {
-            "message": "Command cleanup completed",
-            "data": {
-                "device_sn": device_sn or "all",
-                "commands_cleaned": cleaned_count,
-                "commands_kept_per_device": keep_last_n
+                "action": "restart"
             }
         }
     
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error during command cleanup: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error during command cleanup")
+        logger.error(f"Error restarting device {device_sn}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error while restarting device")
+
+
+@router.post("poweroff")
+async def poweroff_device(device_sn: str):
+    """
+    Shutdown a device remotely
+    
+    Args:
+        device_sn: Device serial number
+        
+    Returns:
+        dict: Response indicating success or failure
+    """
+    try:
+        device = device_manager.get_device(device_sn)
+        if device is None:
+            raise HTTPException(status_code=404, detail=f"Device with SN {device_sn} not found")
+        
+        device.poweroff()
+        
+        logger.info(f"🛑 Device {device_sn} shutdown initiated")
+        
+        return {
+            "message": "Device shutdown initiated",
+            "data": {
+                "device_sn": device_sn,
+                "action": "poweroff"
+            }
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error shutting down device {device_sn}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error while shutting down device")
+
+@router.post("sync-users")
+async def sync_users(device_sn: str):
+    """
+    Sync user data from the device
+    
+    Args:
+        device_sn: Device serial number
+        
+    Returns:
+        dict: Response indicating sync completion
+    """
+    try:
+        device = device_manager.get_device(device_sn)
+        if device is None:
+            raise HTTPException(status_code=404, detail=f"Device with SN {device_sn} not found")
+        
+        device.sync_users()
+        
+        logger.info(f"👥 User sync completed for device {device_sn}")
+        
+        return {
+            "message": "User sync completed",
+            "data": {
+                "device_sn": device_sn,
+                "action": "sync_users"
+            }
+        }
+    
+    except HTTPException:
+        raise
+    except ConnectionError as e:
+        raise HTTPException(status_code=503, detail=f"Device connection error: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error syncing users for device {device_sn}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error while syncing users")
+
+@router.post("set-time")
+async def set_device_time(device_sn: str, request: SetTimeRequest):
+    """
+    Set the device's internal clock
+    
+    Args:
+        device_sn: Device serial number
+        request: SetTimeRequest containing optional new time
+        
+    Returns:
+        dict: Response indicating time set completion
+    """
+    try:
+        device = device_manager.get_device(device_sn)
+        if device is None:
+            raise HTTPException(status_code=404, detail=f"Device with SN {device_sn} not found")
+        
+        device.set_time(request.new_time)
+        
+        target_time = request.new_time or datetime.now()
+        logger.info(f"⏰ Time set for device {device_sn} to {target_time}")
+        
+        return {
+            "message": "Device time set successfully",
+            "data": {
+                "device_sn": device_sn,
+                "time_set": target_time.isoformat()
+            }
+        }
+    
+    except HTTPException:
+        raise
+    except ConnectionError as e:
+        raise HTTPException(status_code=503, detail=f"Device connection error: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error setting time for device {device_sn}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error while setting device time")
+
+@router.get("get-socket-mode")
+async def get_socket_status(device_sn: str):
+    """
+    Get socket connection status for a device
+    
+    Args:
+        device_sn: Device serial number
+        
+    Returns:
+        dict: Response containing socket connection status
+    """
+    try:
+        device = device_manager.get_device(device_sn)
+        if device is None:
+            raise HTTPException(status_code=404, detail=f"Device with SN {device_sn} not found")
+        
+        is_connected = device.is_socket_mode()
+        
+        return {
+            "message": f"Socket status for device {device_sn}",
+            "data": {
+                "device_sn": device_sn,
+                "socket_mode": is_connected,
+                "connection_status": "connected" if is_connected else "disconnected"
+            }
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting socket status for device {device_sn}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error while getting socket status")
+
+@router.post("set-socket-mode")
+async def set_socket_mode(device_sn: str, request: SocketModeRequest):
+    """
+    Set socket mode (TCP connection) for a device
+    
+    Args:
+        device_sn: Device serial number
+        request: SocketModeRequest containing socket mode settings
+        
+    Returns:
+        dict: Response indicating socket mode status
+    """
+    try:
+        device = device_manager.get_device(device_sn)
+        if device is None:
+            raise HTTPException(status_code=404, detail=f"Device with SN {device_sn} not found")
+        
+        device.set_socket_mode(request.is_on, request.force)
+        
+        status = "enabled" if request.is_on else "disabled"
+        logger.info(f"🔌 Socket mode {status} for device {device_sn}")
+        
+        return {
+            "message": f"Socket mode {status}",
+            "data": {
+                "device_sn": device_sn,
+                "socket_mode": request.is_on,
+                "is_connected": device.is_socket_mode()
+            }
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error setting socket mode for device {device_sn}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error while setting socket mode")

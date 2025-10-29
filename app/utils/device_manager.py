@@ -17,7 +17,7 @@ class DeviceManager:
         if device.sn not in self.device_registry:
             self.device_registry[device.sn] = device
             logger.info(f"📋 Added device: {device}")
-            device.connect_device()
+            device.set_socket_mode()
     
     def remove_device(self, sn: str) -> None:
         """Remove a device from the manager by its serial number"""
@@ -31,9 +31,9 @@ class DeviceManager:
     def get_device(self, sn: str) -> Device | None:
         """Retrieve a device by its serial number"""
         device = self.device_registry.get(sn)
-        if device is not None and not device.zk.is_connect:
+        if device is not None and not device.is_socket_mode():
             # Attempt to reconnect if not connected
-            device.connect_device()
+            device.set_socket_mode()
         return device
 
 # Singleton instance

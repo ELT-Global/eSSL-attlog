@@ -11,6 +11,7 @@ References:
 
 # --- Core/Control Commands ---
 REBOOT = "REBOOT"  # Restart the device
+SHUTDOWN = "SHUTDOWN"  # Shutdown the device
 UNLOCK = "AC_UNLOCK"  # Unlock the door
 UNALARM = "AC_UNALARM"  # Disable alarm
 INFO = "INFO"  # Request device info/status
