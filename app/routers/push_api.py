@@ -60,6 +60,7 @@ async def get_request(request: Request):
                     firmware_version=firmware_version,
                     device_type=device_type,
                     device_ip=request.client.host,
+                    device_port=request.client.port
                 )
             )
         else:
