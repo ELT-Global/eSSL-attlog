@@ -27,6 +27,7 @@ class Device:
         self.sn = sn
         self.connected_at = connected_at or datetime.now()
         self.socket_mode = False
+        self.is_socket_mode_possible = True
         self.zk = zk or ZK(device_ip, port=device_port, timeout=5, password=password, force_udp=False, ommit_ping=False)
     
     def is_socket_mode(self) -> bool:
@@ -36,10 +37,14 @@ class Device:
             
     def set_socket_mode(self, is_on: bool = True, force = False) -> None:
         """Attempt to establish socket connection with a device."""
-        
+        logger.info("Set socket mode called")
         if is_on == self.is_socket_mode() and not force:
             return
 
+        if not self.is_socket_mode_possible and not force:
+            logger.warning(f"⚠️ Socket mode not possible for device SN: {self.sn} at IP: {self.device_ip}")
+            return
+        
         # Disconnect if already connected because we're forcing a change.
         try:
             if self.zk.is_connect:
@@ -53,8 +58,9 @@ class Device:
             # Recreate ZK instance to ensure fresh connection, variables may have changed.
             self.zk = ZK(self.device_ip, port=self.device_port, timeout=5, password=0, force_udp=False, ommit_ping=False)
             try:
+                logger.info(f"⌛ Attempting to establishing connection: {self.sn} at IP: {self.device_ip}")
                 self.zk.connect()
-                logger.info(f"✅ Connected to device SN: {self.sn} at IP: {self.device_ip}")
+                logger.info(f"\t✅ Connected to device SN: {self.sn}")
                 self.socket_mode = True
             except Exception as e:
                 self.socket_mode = False
@@ -116,10 +122,10 @@ class Device:
         
     def sync_users(self) -> None:
         """Sync user data from the device."""
-        self.set_socket_mode()
         if not self.is_socket_mode():
-            # DATA QUERY USERINFO oughta work here
-            raise ConnectionError(f"Device SN: {self.sn} is not connected via Socket.")
+            command_manager.queue_command(self.sn, ADMS_CMD.QUERY_ALL_USERS)
+            logger.info(f"👥 Queued QUERY_ALL_USERS command for device SN: {self.sn}")
+            return
         
         try:
             self.zk.disable_device()
