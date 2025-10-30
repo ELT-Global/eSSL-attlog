@@ -1,6 +1,9 @@
 import os
 from fastapi import FastAPI
 from app.routers import attendance, users, actions, stats, push_api, data, commands
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="eSSL Attendance Logger", version="1.0.0")
 
 # Include routers
