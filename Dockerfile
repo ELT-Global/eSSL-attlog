@@ -16,6 +16,10 @@ COPY ./app /code/app
 # Copy the main.py file
 COPY ./main.py /code/
 
+# Create data directory and set it as volume
+RUN mkdir -p /code/data
+VOLUME ["/code/data"]
+
 # Expose port 80
 EXPOSE 80
 

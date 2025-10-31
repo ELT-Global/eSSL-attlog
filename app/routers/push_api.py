@@ -1,14 +1,19 @@
+from fastapi import HTTPException, Depends
+import os
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import PlainTextResponse
 import logging
 from app.utils.parsers import parse_attendance_line, parse_operation_line, parse_user_line, parse_face_line, parse_fingerprint_line
 from app.utils.command_manager import command_manager
 from app.utils.data_manager import data_manager
+from app.services.polling_service import polling_service
 from app.utils.device_manager import device_manager
+from app.utils.parse_info import parse_info
 from app.utils.device import Device
 from datetime import datetime, timedelta
 import app.commands as COMMAND
 from urllib.parse import parse_qs
+from app.utils.network_scan import scanner
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -18,88 +23,45 @@ CURRENT_TIMESTAMP = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 last_attlog = datetime.now() - timedelta(minutes=10)
 ATTLOG_FREQUENCY_MINUTES = 5  # in minutes
 
-router = APIRouter()
-
-def log_request(request: Request):
-    """Helper function to log incoming requests"""
-    logger.info(f"Incoming request: {request.method} {request.url.path} - Query params: {dict(request.query_params)}")
-    logger.info(f"Headers: {dict(request.headers)}")
+def validate_token(request: Request):
+    token = request.path_params.get("token")
+    expected = os.getenv("DEVICE_API_TOKEN")
+    if token != expected:
+        raise HTTPException(status_code=403, detail="Invalid token")
+    
+router = APIRouter(dependencies=[Depends(validate_token)])
 
 @router.get("/getrequest.aspx")
 async def get_request(request: Request):
-    global last_attlog, stamp
     """The device polls this endpoint for commands."""
     query_params = dict(request.query_params)
     SN = query_params.get("SN")
     if not SN:
-        # We don't know if this will happen, but just in case.
-        # todo: We could try to find the device by other means, but for now just ACK
         logger.warning("⚠️ getrequest.aspx called without SN parameter.")
-        return PlainTextResponse(COMMAND.ACK)
-    
-    existing_machine = device_manager.get_device(SN)
-    logger.info(f"[Heartbeat 💓] Machine ID: '{SN}' polled for commands. {'(unknown)' if existing_machine is None else ''}")
-    
+        raise HTTPException(status_code=400, detail="Missing SN parameter")
+
     # Log device info if provided
     INFO = query_params.get("INFO")
-    if INFO is not None:
-        info_tokens = INFO.split(',')
-        firmware_version = info_tokens[0] if len(info_tokens) > 0 else "Unknown"
-        device_type = info_tokens[1] if len(info_tokens) > 1 else "Unknown"
-        device_ip = info_tokens[4] if len(info_tokens) > 4 else "Unknown"
-        
-        if existing_machine is None:
-            if not request.client:
-                logger.error(f"❌ Cannot add new device SN: {SN} - request.client is None")
-                return PlainTextResponse(COMMAND.ACK)
-            logger.info(f"Device IP is {device_ip}")
-            device_manager.add_device(
-                device=Device(
-                    sn=SN,
-                    firmware_version=firmware_version,
-                    device_type=device_type,
-                    device_ip=device_ip
-                )
-            )
-        else:
-            is_changed = False
-            if existing_machine.firmware_version != firmware_version:
-                logger.info(f"\t🔄 Device firmware changed from {existing_machine.firmware_version} to {firmware_version}. Updating record.")
-                existing_machine.firmware_version = firmware_version
-                is_changed = True
-            if existing_machine.device_type != device_type:
-                logger.info(f"\t🔄 Device type changed from {existing_machine.device_type} to {device_type}. Updating record.")
-                existing_machine.device_type = device_type
-                is_changed = True
-            if existing_machine.device_ip != device_ip:
-                logger.info(f"\t🔄 Device IP changed from {existing_machine.device_ip} to {device_ip}. Updating record.")
-                existing_machine.device_ip = device_ip
-                is_changed = True
-            if is_changed:
-                logger.info(f"\t✅ Updated device info for SN: {SN}. Attempting to re-establish connection.")
-                existing_machine.set_socket_mode(force=True)
     
-    # Check if there are any pending commands for this device
-    pending_commands = command_manager.get_pending_commands(SN)
-    if pending_commands:
-        # Build response: one command per line as "C:<id>:<command>"
-        lines = [f"C:{cmd['id']}:{cmd['command']}" for cmd in pending_commands]
-        response_text = '\n'.join(lines) + '\n'  # trailing newline is important
-        
-        logger.info(f"📤 Delivering {len(pending_commands)} commands to device {SN}")
-        return PlainTextResponse(response_text)
-    
-    # No commands or no device SN - return OK
-    return PlainTextResponse(COMMAND.ACK)
+    device_command_response = polling_service.get_commands(SN, INFO)
+    return PlainTextResponse(device_command_response)
 
 @router.get("/cdata.aspx")
 async def get_cdata(request: Request):
     """Handle GET /cdata.aspx"""
     query_params = dict(request.query_params)
     SN = query_params.get("SN")
+    if not SN:
+        logger.warning("⚠️ cdata.aspx called without SN parameter.")
+        raise HTTPException(status_code=400, detail="Missing SN parameter")
+    
     table = query_params.get("table")
-    op_stamp = query_params.get("OpStamp")
-    logger.info(f"🔄️ Machine ID: '{SN}' requested data for Table: '{table}' [{op_stamp}].")
+    options = query_params.get("options")
+    
+    if options:
+        logger.info(f"🔄️ Machine ID: '{SN}' initialized with options: {options}")
+    else:
+        logger.info(f"🔄️ Machine ID: '{SN}' requested data for Table: '{table}'.")
 
     return PlainTextResponse(COMMAND.ACK)
 
@@ -204,7 +166,9 @@ async def device_command_post(request: Request):
 @router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
 async def catch_all_unknown_requests(request: Request, path: str):
     """Catch and log all unknown requests to this router"""
-    log_request(request)
+    logger.info(f"Incoming request: {request.method} {request.url.path} - Query params: {dict(request.query_params)}")
+    logger.info(f"Headers: {dict(request.headers)}")
+
     method = request.method
     query_params = dict(request.query_params)
     

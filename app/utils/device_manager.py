@@ -12,12 +12,13 @@ class DeviceManager:
         # deviceRegistry: Map<SN, Array<Device>>
         self.device_registry: Dict[str, Device] = {}
 
-    def add_device(self, device: Device) -> None:
+    def add_device(self, device: Device, attempt_socket_connection: bool = False) -> None:
         """Add a device to the manager"""
         if device.sn not in self.device_registry:
             self.device_registry[device.sn] = device
             logger.info(f"📋 Added device: {device}")
-            device.set_socket_mode()
+            if attempt_socket_connection:
+                device.set_socket_mode()
     
     def remove_device(self, sn: str) -> None:
         """Remove a device from the manager by its serial number"""
