@@ -19,8 +19,7 @@ CHECK = "CHECK"  # Simple device health check
 LOCK_DEVICE = "CHECK Lock"  # Lock the device (disable input)
 UNLOCK_DEVICE = "CHECK Unlock"  # Unlock the device (enable input)
 ACK = "OK"  # Generic acknowledgment
-ACK_ATTLOG = "OK:ATTLOG 10001" # Acknowledge attendance log receipt
-ACK_OPERLOG = "OK:OPERLOG 10001" # Acknowledge operation log receipt
+ACK_COUNT = lambda count: f"OK:{count}"  # Acknowledge with count of records
 
 # --- User Management ---
 # Add or update a user record

@@ -86,7 +86,7 @@ async def post_cdata(request: Request):
         # Save attendance records to /data/attendance.json
         data_manager.sync_attendance_records(attendance_records, SN)
         
-        return PlainTextResponse(COMMAND.ACK_ATTLOG)
+        return PlainTextResponse(COMMAND.ACK_COUNT(len(attendance_records)))
     elif table == "OPERLOG":
         lines = body_str.splitlines()
         operation_records = [line.strip() for line in lines if line.strip()]
@@ -105,7 +105,7 @@ async def post_cdata(request: Request):
         data_manager.sync_fingerprints(fingerprints, SN)
         data_manager.sync_faces(faces, SN)
         
-        return PlainTextResponse(COMMAND.ACK_OPERLOG)
+        return PlainTextResponse(COMMAND.ACK_COUNT(len(operation_records)))
     else:
         logger.warning(f"Received data for unsupported table '{table}' from Machine ID: '{SN}'.")
         return PlainTextResponse(COMMAND.ACK)
