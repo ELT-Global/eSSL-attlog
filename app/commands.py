@@ -24,7 +24,7 @@ ACK_COUNT = lambda count: f"OK:{count}"  # Acknowledge with count of records
 # --- User Management ---
 # Add or update a user record
 UPDATE_USERINFO = (
-    "DATA UPDATE USERINFO PIN={pin}\tName={name}\tPri={pri}\tPasswd={password}\tCard={card}\tGrp={group}\tTZ={tz}"
+    lambda pin, name, privilege=0, password="", card=0, group=0, tz=0: f"DATA UPDATE USERINFO PIN={pin}\tName={name}\tPri={privilege}\tPasswd={password}\tCard={card}\tGrp={group}\tTZ={tz}"
 )
 
 # Simplified alias (lambda version)

@@ -5,7 +5,7 @@ load_dotenv()
 import logging
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from app.routers import attendance, users, actions, stats, push_api, data, commands
+from app.routers import attendance, users, actions, stats, push_api, data, commands, devices
 from app.utils.network_scan import scanner
 
 # ---------------------------------------------------------------------
@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
         logger.info("📡 Scanning for ZKTeco devices on startup...")
         await scanner.discover_devices()
         logger.info(f"✅ Discovered {len(scanner.list_devices())} device(s): {scanner.list_ips()}")
-    yield  # <- after this line, FastAPI starts serving requests
+    yield
     logger.info("🛑 Shutting down eSSL Attendance Logger...")
 
 
@@ -38,7 +38,8 @@ app = FastAPI(title="eSSL Attendance Logger", version="1.0.0", lifespan=lifespan
 app.include_router(attendance.router, prefix="/attendance", tags=["Attendance"])
 app.include_router(users.router, prefix="/users", tags=["Users"])
 app.include_router(data.router, prefix="/data", tags=["Data"])
-app.include_router(actions.router, prefix="/devices/{device_sn}/actions", tags=["Device/Actions"])
+app.include_router(devices.router, prefix="/devices", tags=["Devices"])
+app.include_router(actions.router, prefix="/devices/{device_sn}/actions:", tags=["Device/Actions"])
 app.include_router(stats.router, prefix="/devices/{device_sn}/stats", tags=["Device/Stats"])
 app.include_router(commands.router, prefix="/devices/{device_sn}/commands", tags=["Device/Commands"])
 app.include_router(push_api.router, prefix="/{token}/iclock", tags=["ADMS/Push API"])

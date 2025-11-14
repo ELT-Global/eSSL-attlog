@@ -37,5 +37,9 @@ class DeviceManager:
             device.set_socket_mode()
         return device
 
+    def list_devices(self) -> List[Device]:
+        """List all managed devices"""
+        return list(self.device_registry.values())
+
 # Singleton instance
 device_manager = DeviceManager()
