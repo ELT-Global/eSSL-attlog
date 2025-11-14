@@ -136,7 +136,13 @@ def _process_command_acknowledgment_post(sn: str, body_data: dict) -> None:
 
 @router.post("/devicecmd.aspx")
 async def device_command_post(request: Request):
-    """Handle POST /devicecmd.aspx - process command acknowledgments and return plain text 'OK'"""
+    """
+    Handle POST /devicecmd.aspx - process command acknowledgments and return plain text 'OK'
+    
+    This endpoint corresponds to the ADMS protocol's devicecmd endpoint where devices
+    send acknowledgments for previously issued commands. The polling_service.ack_command
+    method provides a cleaner interface for processing these acknowledgments.
+    """
     query_params = dict(request.query_params)
     SN = query_params.get("SN", "")
     
@@ -145,6 +151,13 @@ async def device_command_post(request: Request):
         body_str = body.decode('utf-8') if body else ""
         logger.info(f"POST /devicecmd.aspx called with params: {query_params}, body: {body_str[:200]}")
         
+        # Option 1: Use the new polling_service.ack_command method (recommended)
+        # This provides a cleaner, well-documented interface for ACK processing
+        if body_str and SN:
+            response = polling_service.ack_command(SN, body_str)
+            return PlainTextResponse(response)
+        
+        # Option 2: Legacy processing (kept for compatibility)
         # Try to parse as form data for the new format
         if body_str and "=" in body_str:
             parsed_body = parse_qs(body_str)

@@ -3,7 +3,7 @@ from datetime import datetime
 
 class DeviceCommand(TypedDict):
     """Type definition for a device command"""
-    id: int
+    id: str  # Changed from int to str for alphanumeric command IDs
     command: str
     status: Literal['pending', 'sent', 'failed', 'acked']
     queued_at: datetime
@@ -19,9 +19,10 @@ class ADMSQueue:
         self.commands = commands if commands is not None else []
         self.command_sequence = command_sequence
 
-    def next_sequence(self) -> int:
+    def next_sequence(self) -> str:
+        """Generate next command sequence ID as alphanumeric string."""
         self.command_sequence += 1
-        return self.command_sequence
+        return str(self.command_sequence)
     
     def add_command(self, command: str) -> DeviceCommand:
         command_id = self.next_sequence()
@@ -40,14 +41,14 @@ class ADMSQueue:
     def get_pending_commands(self) -> List[DeviceCommand]:
         return [cmd for cmd in self.commands if cmd['status'] == 'pending']
 
-    def mark_command_sent(self, command_id: int) -> None:
+    def mark_command_sent(self, command_id: str) -> None:
         for cmd in self.commands:
             if cmd['id'] == command_id:
                 cmd['status'] = "sent"
                 cmd['sent_at'] = datetime.now()
                 break
     
-    def mark_command_acked(self, command_id: int, return_code: str) -> None:
+    def mark_command_acked(self, command_id: str, return_code: str) -> None:
         for cmd in self.commands:
             if cmd['id'] == command_id:
                 cmd['status'] = "acked"

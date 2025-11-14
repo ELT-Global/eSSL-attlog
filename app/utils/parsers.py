@@ -1,3 +1,6 @@
+from pydantic import BaseModel
+
+
 def parse_attendance_line(line: str) -> dict:
     """Parse a single attendance log line and return structured data"""
     parts = line.strip().split()
@@ -8,6 +11,20 @@ def parse_attendance_line(line: str) -> dict:
         "InOutMode": parts[4] if len(parts) > 4 else "",
         "WorkCode": parts[5] if len(parts) > 5 else "",
     }
+
+class AckLine(BaseModel):
+    ID: str
+    Return: str
+    CMD: str
+
+def parse_ack_line(line: str) -> AckLine:
+    """Parse acknowledgment line into parameters dictionary."""
+    ack_params = {}
+    for param in line.split('&'):
+        if '=' in param:
+            key, value = param.split('=', 1)
+            ack_params[key] = value
+    return AckLine(**ack_params)
 
 def parse_user_line(line: str) -> dict:
     """Parse a user line and return structured data"""

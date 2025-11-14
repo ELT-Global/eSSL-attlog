@@ -58,12 +58,12 @@ class Device:
         """Retrieve pending commands for the device."""
         return self.adms_queue.get_pending_commands()
 
-    def mark_commands_sent(self, command_ids: List[int]) -> None:
+    def mark_commands_sent(self, command_ids: List[str]) -> None:
         """Mark specified commands as sent."""
         for cmd_id in command_ids:
             self.adms_queue.mark_command_sent(cmd_id)
         
-    def mark_command_acked(self, command_id: int, return_code: str) -> None:
+    def mark_command_acked(self, command_id: str, return_code: str) -> None:
         """Acknowledge a command completion."""
         self.adms_queue.mark_command_acked(command_id, return_code)
     

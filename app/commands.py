@@ -105,6 +105,57 @@ ENROLL_FP = (
 # --- Miscellaneous / Unknown ---
 UNKNOWN = "UNKNOWN"
 
+RETURN_CODE_SUCCESS = "0"
+# Return code definitions for ADMS protocol acknowledgments
+RETURN_CODE = {
+    "0": "Successful",
+    "-1": "The parameter is incorrect",
+    "-2": "The transmitted user photo data does not match the given size",
+    "-3": "Reading or writing is incorrect",
+    "-9": "The transmitted template data does not match the given size",
+    "-10": "The user specified by PIN does not exist in the equipment",
+    "-11": "The fingerprint template format is illegal",
+    "-12": "The fingerprint template is illegal",
+    "-1001": "Limited capacity",
+    "-1002": "Not supported by the equipment",
+    "-1003": "Command execution timeout",
+    "-1004": "The data and equipment configuration are inconsistent",
+    "-1005": "The equipment is busy",
+    "-1006": "The data is too long",
+    "-1007": "Memory error",
+    "-1008": "Failed to get server data"
+}
+
+# --- Command ID Validation ---
+def validate_command_id(device_sn: str, cmd_id: str | None) -> str | None:
+    """
+    Validate command ID format.
+    
+    According to ADMS protocol, command IDs are alphanumeric strings
+    with maximum length of 16 characters.
+    
+    Args:
+        device_sn: Device serial number (for logging context)
+        cmd_id: Command ID to validate
+        
+    Returns:
+        str | None: Validated command ID or None if invalid
+    """
+    if not cmd_id:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"⚠️ Missing command ID in acknowledgment from device {device_sn}")
+        return None
+    
+    # Check if command ID is alphanumeric and within length limit
+    if not cmd_id.isalnum() or len(cmd_id) > 16:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"⚠️ Invalid command ID format from device {device_sn}: '{cmd_id}' (must be alphanumeric, max 16 chars)")
+        return None
+    
+    return cmd_id
+
 # --- Command Builders (helpers) ---
 def build_attlog_query(start, end, iso=False):
     """
