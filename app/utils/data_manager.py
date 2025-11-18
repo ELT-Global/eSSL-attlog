@@ -83,7 +83,7 @@ class DataManager:
         for i, existing_record in enumerate(existing_data):
             unique_key = (
                 existing_record.get('PIN', ''),
-                existing_record.get('Timestamp', ''),
+                existing_record.get('Time', ''),
                 existing_record.get('machine_id', '')
             )
             existing_lookup[unique_key] = i
@@ -94,7 +94,7 @@ class DataManager:
         for record in records:
             unique_key = (
                 record.get('PIN', ''),
-                record.get('Timestamp', ''),
+                record.get('Time', ''),
                 record.get('machine_id', '')
             )
             

@@ -1,15 +1,36 @@
 from pydantic import BaseModel
 
-
 def parse_attendance_line(line: str) -> dict:
-    """Parse a single attendance log line and return structured data"""
-    parts = line.strip().split()
+    """
+    Parse a single attendance log line and return structured data.
+    
+    Format: `${Pin}${HT}${Time}${HT}${Status}${HT}${Verify}${HT}${Workcode}${HT}${Reserved}${HT}${Reserved}`
+    
+    Where:
+    - `${Pin}`: User PIN/ID
+    - `${Time}`: Verification time in format YYYY-MM-DD HH:MM:SS (e.g., 2015-07-29 11:11:11)
+    - `${Status}`: Status code (typically 0 or 1 for In/Out)
+    - `${Verify}`: Verification method (fingerprint, card, password, etc.)
+    - `${Workcode}`: Work code (optional)
+    - `${Reserved}`: Reserved fields (typically empty)
+    - `${HT}`: Horizontal tab character as field separator
+    
+    Args:
+        line: Raw attendance log line from device
+        
+    Returns:
+        dict: Parsed attendance data with standardized field names
+    """
+    parts = line.strip().split('\t')  # Use tab separator as per ADMS protocol
+    
     return {
         "PIN": parts[0] if len(parts) > 0 else "",
-        "Timestamp": parts[1] + (" " + parts[2] if len(parts) > 2 else "") if len(parts) > 1 else "",
-        "VerifyMode": parts[3] if len(parts) > 3 else "",
-        "InOutMode": parts[4] if len(parts) > 4 else "",
-        "WorkCode": parts[5] if len(parts) > 5 else "",
+        "Time": parts[1] if len(parts) > 1 else "",  # Full timestamp as single field
+        "Status": parts[2] if len(parts) > 2 else "",  # In/Out status
+        "Verify": parts[3] if len(parts) > 3 else "",  # Verification method
+        "Workcode": parts[4] if len(parts) > 4 else "",  # Work code
+        "Reserved1": parts[5] if len(parts) > 5 else "",  # First reserved field
+        "Reserved2": parts[6] if len(parts) > 6 else "",  # Second reserved field
     }
 
 class AckLine(BaseModel):
