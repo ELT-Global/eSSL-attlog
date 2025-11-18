@@ -80,6 +80,7 @@ async def post_cdata(request: Request):
     
     if table == "ATTLOG":
         lines = body_str.splitlines()
+        print(lines)
         attendance_records = [parse_attendance_line(line) for line in lines if line.strip()]
         logger.info(f"📥 Received {len(attendance_records)} attendance records from Machine ID: '{SN}'.")
         
